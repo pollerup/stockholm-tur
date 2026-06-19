@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stockholm Tur 🇸🇪</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f7f4; color: #1a1a1a; }
+
+  header { background: #1a1a1a; color: #fff; padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+  header span.sub { font-size: 12px; color: #888; margin-left: auto; white-space: nowrap; }
+
+  #map { width: 100%; height: calc(100vh - 52px - 72px); }
+
+  .legend {
+    background: #fff;
+    border-top: 1px solid #e8e6e0;
+    padding: 10px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    min-height: 52px;
+  }
+  .leg { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #444; cursor: pointer; padding: 4px 9px; border-radius: 20px; border: 1px solid #e0ddd5; background: #fafaf8; user-select: none; transition: opacity .15s; white-space: nowrap; }
+  .leg.off { opacity: 0.35; }
+  .leg:hover { border-color: #aaa; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .count { font-size: 10px; color: #999; margin-left: 2px; }
+
+  .leaflet-popup-content-wrapper { border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); border: none; }
+  .leaflet-popup-content { margin: 11px 13px; min-width: 180px; }
+  .popup-cat { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px; margin-bottom: 4px; }
+  .popup-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; color: #111; }
+  .popup-desc { font-size: 11px; color: #555; line-height: 1.5; }
+  .popup-hours { font-size: 10px; color: #888; margin-top: 4px; }
+  .popup-warn { font-size: 10px; color: #c0392b; margin-top: 3px; font-weight: 600; }
+
+  @media (max-width: 600px) {
+    header h1 { font-size: 15px; }
+    #map { height: calc(100vh - 52px - 90px); }
+    .legend { min-height: 70px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:20px">🇸🇪</span>
+  <h1>Stockholm Tur — Far & Søn</h1>
+  <span class="sub">Scandic Klara · Fre–Søn</span>
+</header>
+
+<div id="map"></div>
+<div class="legend" id="legend"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const categories = [
+  { id:"hotel",       label:"🏨 Hotellet",              color:"#f97316" },
+  { id:"morgenmad",   label:"🟢 Morgenmad",             color:"#22c55e" },
+  { id:"fika",        label:"🟡 Fika",                  color:"#eab308" },
+  { id:"burger",      label:"🔴 Burgere",               color:"#ef4444" },
+  { id:"kodboller",   label:"🔵 Kødboller",             color:"#3b82f6" },
+  { id:"ol",          label:"🟣 Øl & klassiske",        color:"#a855f7" },
+  { id:"sevardighed", label:"⚫ Seværdigheder",         color:"#374151" },
+];
+
+const places = [
+  // HOTEL
+  { cat:"hotel", name:"Scandic Klara", lat:59.3327, lng:18.0622, desc:"Jeres base for weekenden", hours:"" },
+
+  // MORGENMAD
+  { cat:"morgenmad", name:"Fabrique Klarabergsgatan", lat:59.3317, lng:18.0597, desc:"Topklasse bageri — prøv kardemonsnurren!", hours:"Åbner 07:00 (lør/søn 08:00)" },
+  { cat:"morgenmad", name:"Bageri Norrmalm", lat:59.3364, lng:18.0583, desc:"Hyggelig lokalbager, alt lavet fra bunden", hours:"Åbner 06:30", warn:"Lukket weekenden!" },
+  { cat:"morgenmad", name:"STHLM Brunch Club", lat:59.3392, lng:18.0484, desc:"Fantastisk brunch — book bord i forvejen!", hours:"Åbner 08:00 (søn 08:30)", warn:"Lukket fre+lør!" },
+  { cat:"morgenmad", name:"Café Pascal (Vasastan)", lat:59.3423, lng:18.0519, desc:"Hipster-favorit med god kaffe og pistacienitter", hours:"Åbner 07:00 (lør/søn 08:00)" },
+  { cat:"morgenmad", name:"Café Pascal (Östermalm)", lat:59.3369, lng:18.0738, desc:"Lille hyggelig filial med hjemmeristede bønner", hours:"Åbner 07:30 (lør/søn 09:00)" },
+  { cat:"morgenmad", name:"Komet Café Stockholm", lat:59.3311, lng:18.0485, desc:"4.8 stjerner — fantastiske croissanter og boller", hours:"Åbner 07:00 (lør/søn 08:00)" },
+  { cat:"morgenmad", name:"Grodan (Östermalm)", lat:59.3359, lng:18.0758, desc:"Klassisk bistro med morgenmad og brunch", hours:"Åbner 07:30 (lør/søn 12:00)" },
+  { cat:"morgenmad", name:"Gast Café", lat:59.3397, lng:18.0568, desc:"Trendy brunch-café med god stemning", hours:"Åbner 07:30 (søn 09:00)", warn:"Lukket fre+lør!" },
+
+  // FIKA
+  { cat:"fika", name:"Vete-Katten", lat:59.3342, lng:18.0586, desc:"Stockholms mest ikoniske konditori siden 1928", hours:"Åbner 07:30 (lør/søn 09:00)" },
+  { cat:"fika", name:"Café Schweizer (Gamla Stan)", lat:59.3261, lng:18.0688, desc:"Klassisk Gamla Stan-café, kanelbullar og smørrebrød", hours:"Åbner 07:00" },
+  { cat:"fika", name:"Kaffekoppen", lat:59.3249, lng:18.0704, desc:"På Stortorget — kæmpe varm chokolade og hygge", hours:"Åbner 09:00" },
+  { cat:"fika", name:"Café Chokladkoppen", lat:59.3249, lng:18.0703, desc:"Naboer med Kaffekoppen — æblekage og kanelsnurrer", hours:"Åbner 09:00" },
+  { cat:"fika", name:"Fika Spot (Skeppsbron)", lat:59.3270, lng:18.0743, desc:"Kaffe ved vandet med udsigt over Gamla Stan", hours:"Åbner 09:00" },
+  { cat:"fika", name:"Fabrique (Gamla Stan)", lat:59.3236, lng:18.0686, desc:"Varm mandelbolle og kaffe midt i Gamla Stan", hours:"Åbner 07:30 (lør/søn 09:00)" },
+  { cat:"fika", name:"Lillebrors Bageri", lat:59.3400, lng:18.0342, desc:"Byens bedste boller — kardamom og mandel er guddommelige", hours:"Ti–fre 08:00 (fre kun til 11:00)", warn:"Lukket man/lør/søn!" },
+  { cat:"fika", name:"Fabrique (Södermalm)", lat:59.3159, lng:18.0560, desc:"Hyggelig bageri med god atmosfære og kanelsnurrer", hours:"Åbner 07:00 (lør/søn 08:00)" },
+  { cat:"fika", name:"Svedjan Bageri", lat:59.3179, lng:18.0499, desc:"Populær nabolagsbager i Södermalm — sæt tid af!", hours:"Åbner 07:30 (lør/søn 09:00)" },
+  { cat:"fika", name:"Kladdkakan Café & Bistro", lat:59.3239, lng:18.0696, desc:"Opkaldt efter den klassiske svenske chokoladekage", hours:"Åbner 08:00 (lør 08:00)" },
+
+  // BURGERE
+  { cat:"burger", name:"BOO Burgers & Barbecue", lat:59.3307, lng:18.0647, desc:"Bedste smashburger i Stockholm — prøv Viking burgeren!", hours:"Åbner 11:00" },
+  { cat:"burger", name:"Barrels (Gamla Stan)", lat:59.3246, lng:18.0685, desc:"Burgere + lokale øl på tap — fed ølvæg", hours:"Åbner 11:30" },
+  { cat:"burger", name:"Burgers'n'Fuel (Gamla Stan)", lat:59.3243, lng:18.0704, desc:"Prøv rensdyr-burgeren og sweet potato fries!", hours:"Åbner 11:00" },
+  { cat:"burger", name:"Franky's Burger (Vasastan)", lat:59.3398, lng:18.0605, desc:"En af Stockholms absolut bedste — kom tidligt!", hours:"Åbner 11:00 (søn 12:00)" },
+  { cat:"burger", name:"Franky's Burger (Södermalm)", lat:59.3103, lng:18.0739, desc:"Franky's søster — samme høje kvalitet, større lokaler", hours:"Åbner 11:00 (søn 12:00)" },
+  { cat:"burger", name:"Josefs Burger Grill", lat:59.3115, lng:18.0744, desc:"4.9 stjerner! Frisk smashburger med hjerte i det", hours:"Åbner 12:00", warn:"Lukket mandag!" },
+  { cat:"burger", name:"Mormors Lilla Kök", lat:59.3129, lng:18.0578, desc:"Byens bedste cheeseburger — lille sted, kæmpe smag", hours:"Åbner 10:00" },
+  { cat:"burger", name:"Östermalmsgrillen", lat:59.3357, lng:18.0787, desc:"Fantastiske burgere på Östermalm — prøv dem!", hours:"Åbner 09:00 (fre/lør til 02:00)" },
+
+  // KØDBOLLER
+  { cat:"kodboller", name:"Stockholms Gästabud", lat:59.3257, lng:18.0740, desc:"Byens bedste köttbullar — ingen reservation, kom tidligt!", hours:"Åbner 12:00" },
+  { cat:"kodboller", name:"FIKA & WINE", lat:59.3239, lng:18.0736, desc:"Oksekødboller (ingen svin!) i hyggelig Gamla Stan-stemning", hours:"Åbner 11:00" },
+  { cat:"kodboller", name:"Slingerbulten", lat:59.3243, lng:18.0688, desc:"Hjemmelavet kvalitet — minder om bedstemoders køkken", hours:"Ti–to 11:00", warn:"LUKKET man/fre/lør/søn!" },
+  { cat:"kodboller", name:"Meatballs for the People", lat:59.3146, lng:18.0813, desc:"13 kødstyper inkl. rådyr og bjørn — ingen reservation", hours:"Åbner 11:00" },
+  { cat:"kodboller", name:"House of Smorgasbord", lat:59.3257, lng:18.0740, desc:"Familiedrevet smagsrestaurant — skjult perle i Gamla Stan", hours:"Åbner 12:00" },
+  { cat:"kodboller", name:"Bakfickan", lat:59.3302, lng:18.0708, desc:"Fremragende kødboller og fisk — book bord!", hours:"Åbner 11:30", warn:"Lukket søndag!" },
+  { cat:"kodboller", name:"Restaurant Tradition", lat:59.3260, lng:18.0739, desc:"Klassisk svensk husmanskost — kødboller og laks", hours:"Åbner 11:30 (lør/søn 12:00)" },
+  { cat:"kodboller", name:"Nomad | Swedish Food & Bar", lat:59.3361, lng:18.0553, desc:"Åbent køkken — vildt stuvning og byens bedste kødboller", hours:"Åbner 17:00" },
+  { cat:"kodboller", name:"Restaurant Pelikan", lat:59.3106, lng:18.0763, desc:"Historisk restaurant i Södermalm — ren svensk klassiker", hours:"Åbner 11:30" },
+  { cat:"kodboller", name:"Knut Upplandsgatan", lat:59.3381, lng:18.0528, desc:"Nordsvensk mad med rensdyr, kroppkakor og lingon", hours:"Åbner 11:00", warn:"Lukket lør-søn aften / hele søn!" },
+
+  // ØL & KLASSISKE
+  { cat:"ol", name:"Aifur (Vikingrestaurant)", lat:59.3231, lng:18.0718, desc:"Vikingeoplevelse med levende musik + mjød i horn!", hours:"Åbner 17:00", warn:"LUKKET fre+søn — BOOK UGER I FORVEJEN!" },
+  { cat:"ol", name:"Restaurant Ardbeg Embassy", lat:59.3231, lng:18.0720, desc:"Whisky + kødboller + øl — fed og hyggelig stemning", hours:"Åbner 12:00" },
+  { cat:"ol", name:"Den Gyldene Freden", lat:59.3232, lng:18.0738, desc:"Stockholms ældste restaurant fra 1722 — toast skagen er et must!", hours:"Åbner 12:00", warn:"Lukket søndag!" },
+  { cat:"ol", name:"Zum Franziskaner", lat:59.3224, lng:18.0742, desc:"Tysk ølhus med fremragende sild og øl på tap", hours:"Åbner 16:00 (fre/lør/søn 15:00)" },
+  { cat:"ol", name:"Restaurant Akkurat", lat:59.3199, lng:18.0687, desc:"Enormt udvalg af craft beer og god mad", hours:"Åbner 16:00 (søn 15:00)", warn:"Lukket fre+lør!" },
+  { cat:"ol", name:"Restaurang Kvarnen", lat:59.3148, lng:18.0743, desc:"Klassisk svensk brasserie — toast skagen + rensdyr. Book bord!", hours:"Åbner 11:00" },
+  { cat:"ol", name:"Grodan Brasserie", lat:59.3359, lng:18.0758, desc:"Beef Rydberg og sjæl — smuk indretning på Östermalm", hours:"Åbner 07:30 (lør/søn 12:00)" },
+  { cat:"ol", name:"Röda Huset", lat:59.3328, lng:18.0661, desc:"Top 100-cocktailbar med smuk udsigt — prøv Apple Negroni!", hours:"Åbner 17:00", warn:"Lukket fre+lør!" },
+
+  // SEVÆRDIGHEDER
+  { cat:"sevardighed", name:"Vasa Museet", lat:59.3280, lng:18.0914, desc:"Verdens bedst bevarede 1600-tals krigsskib — ABSOLUT MUST!", hours:"Åbner 08:30" },
+  { cat:"sevardighed", name:"Kongepalads (Kungliga Slottet)", lat:59.3268, lng:18.0717, desc:"Vagtskifte + 600 rum — Europas største kongelige palads", hours:"Åbner 10:00" },
+  { cat:"sevardighed", name:"Storkyrkan (Domkirken)", lat:59.3258, lng:18.0704, desc:"Stockholms ældste kirke fra 1300-tallet", hours:"Åbner 09:30" },
+  { cat:"sevardighed", name:"Fotografiska Museum", lat:59.3180, lng:18.0848, desc:"Verdens bedste fotomuseum — åbent helt til kl. 23!", hours:"Åbner 10:00" },
+  { cat:"sevardighed", name:"Stockholm Rådhus", lat:59.3278, lng:18.0552, desc:"Nobelmiddagslokalet — smuk arkitektur ved vandet", hours:"Åbner 08:30" },
+  { cat:"sevardighed", name:"Mårten Trotzigs gränd", lat:59.3230, lng:18.0728, desc:"Stockholms smalleste gade — kun 90 cm bred!", hours:"Altid åben" },
+  { cat:"sevardighed", name:"Gamla Stan (Västerlånggatan)", lat:59.3250, lng:18.0708, desc:"Den historiske gågade — smukke farverige huse", hours:"Altid åben" },
+  { cat:"sevardighed", name:"St. George & The Dragon", lat:59.3251, lng:18.0737, desc:"Imponerende middelalderlig bronzestatue", hours:"Altid åben" },
+  { cat:"sevardighed", name:"Skinnarviksberget", lat:59.3175, lng:18.0455, desc:"Stockholms højeste punkt med panoramaudsigt over byen", hours:"Altid åben" },
+];
+
+const map = L.map('map', { center: [59.3295, 18.0680], zoom: 14 });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+  maxZoom: 19
+}).addTo(map);
+
+const catMap = {};
+categories.forEach(c => { catMap[c.id] = c; });
+
+function makeIcon(color, isHotel) {
+  const s = isHotel ? 34 : 26;
+  const inner = isHotel
+    ? `<text x="17" y="22" text-anchor="middle" font-size="15">🏨</text>`
+    : `<circle cx="13" cy="13" r="5" fill="white" opacity="0.85"/>`;
+  const svg = isHotel
+    ? `<svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg"><circle cx="17" cy="17" r="16" fill="${color}" stroke="white" stroke-width="2.5"/>${inner}</svg>`
+    : `<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="13" r="12" fill="${color}" stroke="white" stroke-width="2"/>${inner}<polygon points="13,34 7,22 19,22" fill="${color}"/></svg>`;
+  return L.divIcon({ html: svg, className: '', iconSize: [s, isHotel ? s : s+8], iconAnchor: [s/2, isHotel ? s/2 : s+8], popupAnchor: [0, isHotel ? -s/2 : -(s+8)] });
+}
+
+const layerGroups = {};
+categories.forEach(c => { layerGroups[c.id] = L.layerGroup().addTo(map); });
+
+places.forEach(p => {
+  const cat = catMap[p.cat];
+  const isHotel = p.cat === 'hotel';
+  const marker = L.marker([p.lat, p.lng], { icon: makeIcon(cat.color, isHotel) });
+  const badge = `<span class="popup-cat" style="background:${cat.color}22;color:${cat.color}">${cat.label}</span>`;
+  const warn = p.warn ? `<div class="popup-warn">⚠️ ${p.warn}</div>` : '';
+  const hours = p.hours ? `<div class="popup-hours">⏰ ${p.hours}</div>` : '';
+  marker.bindPopup(`${badge}<div class="popup-name">${p.name}</div><div class="popup-desc">${p.desc}</div>${hours}${warn}`);
+  marker.addTo(layerGroups[p.cat]);
+});
+
+const legend = document.getElementById('legend');
+categories.filter(c => c.id !== 'hotel').forEach(c => {
+  const count = places.filter(p => p.cat === c.id).length;
+  const el = document.createElement('div');
+  el.className = 'leg';
+  el.innerHTML = `<div class="dot" style="background:${c.color}"></div>${c.label}<span class="count">${count}</span>`;
+  let on = true;
+  el.addEventListener('click', () => {
+    on = !on;
+    el.classList.toggle('off', !on);
+    if (on) map.addLayer(layerGroups[c.id]);
+    else map.removeLayer(layerGroups[c.id]);
+  });
+  legend.appendChild(el);
+});
+</script>
+</body>
+</html>
