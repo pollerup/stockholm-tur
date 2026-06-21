@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stockholm 🇸🇪</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1923; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+header {
+  padding: 8px 12px;
+  background: #0f1923;
+  border-bottom: 1px solid #1e2d3a;
+  flex-shrink: 0;
+}
+header h1 { font-size: 1rem; color: #e8ddd0; font-weight: 600; }
+header p { font-size: 0.68rem; color: #7a9bb5; }
+
+.filters {
+  display: flex; gap: 5px; flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #0f1923;
+  border-bottom: 1px solid #1e2d3a;
+  flex-shrink: 0;
+}
+.filter-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 20px;
+  border: 1.5px solid transparent;
+  background: #1a2a38; cursor: pointer;
+  font-size: 0.72rem; font-family: inherit;
+  font-weight: 500; color: #9bb5c8;
+  transition: all 0.15s; white-space: nowrap;
+}
+.filter-btn.active { background: #1e3248; border-color: var(--c); color: #e8ddd0; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+#map { flex: 1; width: 100%; }
+
+/* Leaflet popup */
+.leaflet-popup-content-wrapper {
+  background: #1a2a38 !important;
+  border: 1px solid #2a3d52 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5) !important;
+  color: #e8ddd0 !important;
+}
+.leaflet-popup-tip { background: #1a2a38 !important; }
+.leaflet-popup-content { margin: 12px 14px !important; font-family: inherit !important; min-width: 180px; }
+.p-cat { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
+.p-name { font-size: 0.95rem; font-weight: 600; color: #e8ddd0; line-height: 1.25; }
+.p-note { font-size: 0.72rem; color: #9bb5c8; margin-top: 4px; line-height: 1.4; }
+.p-hours { font-size: 0.67rem; margin-top: 6px; padding: 3px 7px; background: #0f1923; border-radius: 6px; color: #7a9bb5; }
+.p-link { display: inline-block; margin-top: 6px; font-size: 0.68rem; color: #4d9ecb; text-decoration: none; }
+.leaflet-control-zoom a { background: #1a2a38 !important; color: #9bb5c8 !important; border-color: #2a3d52 !important; }
+.leaflet-control-zoom a:hover { background: #243545 !important; color: #e8ddd0 !important; }
+.leaflet-control-attribution { background: rgba(15,25,35,0.8) !important; color: #3a5a72 !important; font-size: 9px !important; }
+.leaflet-control-attribution a { color: #4d7a92 !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Stockholm 🇸🇪</h1>
+  <p>Fredag → Søndag · Scandic Klara</p>
+</header>
+
+<div class="filters" id="filters"></div>
+
+<div id="map"></div>
+
+<script>
+var CATS = [
+  { id:'morgenmad', label:'Morgenmad', color:'#22c55e' },
+  { id:'fika',      label:'Fika',      color:'#eab308' },
+  { id:'burgere',   label:'Burgere',   color:'#ef4444' },
+  { id:'koedboll',  label:'Kødboller', color:'#3b82f6' },
+  { id:'oel',       label:'Øl & mad',  color:'#a855f7' },
+  { id:'sights',    label:'Seværdigh.',color:'#94a3b8' },
+];
+
+var PLACES = [
+  // MORGENMAD
+  {cat:'morgenmad',name:"D'Abramo – Taste Italy",note:'Ægte italiensk espresso og croissanter tæt på hotellet',lat:59.33450,lng:18.05611,hours:'Man–Fre 7–16 · Lør 10–15',maps:'https://maps.google.com/?q=59.33450,18.05611'},
+  {cat:'morgenmad',name:'Vete-Katten Kungsgatan',note:'Klassisk stockholmsk konditori siden 1928 – prøv prinsessekagen!',lat:59.33420,lng:18.05860,hours:'Lør–Søn 9–19',maps:'https://maps.google.com/?q=59.33420,18.05860'},
+  {cat:'morgenmad',name:'Dirty Coco',note:'Brunch midt på gågaden – blomster-decor, toasts og waffles',lat:59.33515,lng:18.06002,hours:'Man–Søn 11–20',maps:'https://maps.google.com/?q=59.33515,18.06002'},
+  {cat:'morgenmad',name:'STHLM Brunch Club',note:'Populært brunchsted – beskrives som bedste morgenmad i Stockholm',lat:59.33921,lng:18.04837,hours:'Søn 8:30–16',maps:'https://maps.google.com/?q=59.33921,18.04837'},
+  {cat:'morgenmad',name:'Gast Café',note:'Hyggelig café – lukket lørdag men åben søndag',lat:59.33967,lng:18.05676,hours:'Søn 9–17',maps:'https://maps.google.com/?q=59.33967,18.05676'},
+  {cat:'morgenmad',name:'Café Saturnus',note:'Berømt for sin kæmpestore kanelsnurre',lat:59.33954,lng:18.06879,hours:'Lør–Søn 9–19',maps:'https://maps.google.com/?q=59.33954,18.06879'},
+  {cat:'morgenmad',name:'Two Fat Ladies',note:'Hyggelig weekend-brunch i Östermalm',lat:59.34729,lng:18.06726,hours:'Lør–Søn 9–15:30',maps:'https://maps.google.com/?q=59.34729,18.06726'},
+  {cat:'morgenmad',name:'Nybrogatan 38',note:'Kvarterskrog i Östermalm – morgenmad og frokost',lat:59.33783,lng:18.08002,hours:'Lør 11–24 · Søn 11–23',maps:'https://maps.google.com/?q=59.33783,18.08002'},
+  // FIKA
+  {cat:'fika',name:'Kaffekoppen',note:'Charmerende kælderfika på Stortorget i Gamla Stan',lat:59.32491,lng:18.07035,hours:'Lør 9–23 · Søn 9–22',maps:'https://maps.google.com/?q=59.32491,18.07035'},
+  {cat:'fika',name:'Café Chokladkoppen',note:'Nabo til Kaffekoppen – berømt varm chokolade og kanelboller',lat:59.32494,lng:18.07031,hours:'Lør 9–23 · Søn 9–22',maps:'https://maps.google.com/?q=59.32494,18.07031'},
+  {cat:'fika',name:'Vete-Katten (Åhlens)',note:'Vete-Katten inde i Åhlens City – super centralt',lat:59.33234,lng:18.06194,hours:'Lør 10–19 · Søn 11–19',maps:'https://maps.google.com/?q=59.33234,18.06194'},
+  {cat:'fika',name:'Komet Café',note:'Hyggelig bageri på Kungsholmen – fantastiske croissanter',lat:59.33113,lng:18.04852,hours:'Lør–Søn 8–17',maps:'https://maps.google.com/?q=59.33113,18.04852'},
+  {cat:'fika',name:'Café Pascal',note:'Trendy specialkaffe ved Observatorielunden',lat:59.34229,lng:18.05186,hours:'Lør–Søn 8–17',maps:'https://maps.google.com/?q=59.34229,18.05186'},
+  {cat:'fika',name:'Coffee Stop (Gamla Stan)',note:'Lille café med noter fra kunder hængende fra loftet',lat:59.32440,lng:18.07094,hours:'Lør–Søn 10–20',maps:'https://maps.google.com/?q=59.32440,18.07094'},
+  {cat:'fika',name:'NORMAL Café Hötorget',note:'Kaffe for 18 kr – billigste gode kaffe i Stockholm',lat:59.33443,lng:18.06333,hours:'Lør–Søn 9–18',maps:'https://maps.google.com/?q=59.33443,18.06333'},
+  // BURGERE
+  {cat:'burgere',name:'BOO Burgers & Barbecue',note:'Saftige smash burgers på Drottninggatan – prøv Viking-burgeren!',lat:59.33067,lng:18.06472,hours:'Lør–Søn 11–21',maps:'https://maps.google.com/?q=59.33067,18.06472'},
+  {cat:'burgere',name:'Barrels',note:'Burger + øl på tapvæg i Gamla Stan',lat:59.32463,lng:18.06847,hours:'Lør 11:30–24 · Søn 12–22',maps:'https://maps.google.com/?q=59.32463,18.06847'},
+  {cat:'burgere',name:"Burgers'n'Fuel",note:'Rensdyrburger og klassiske smash burgers i Gamla Stan',lat:59.32427,lng:18.07035,hours:'Lør–Søn 11–22',maps:'https://maps.google.com/?q=59.32427,18.07035'},
+  {cat:'burgere',name:'bap – Burgers & Pastrami',note:'Måske den bedste smash burger i Stockholm – book bord!',lat:59.33670,lng:18.08224,hours:'Lør 12–23 · Søn 12–21',maps:'https://maps.google.com/?q=59.33670,18.08224'},
+  {cat:'burgere',name:'Bastard Burgers',note:'Svensk burgerkæde med god veganoption',lat:59.33479,lng:18.06380,hours:'Lør–Søn 11–23',maps:'https://maps.google.com/?q=59.33479,18.06380'},
+  // KØDBOLLER
+  {cat:'koedboll',name:'Stockholms Gästabud',note:'En af byens bedste köttbullar – ingen reservation, ventetid mulig',lat:59.32568,lng:18.07399,hours:'Lør–Søn 12–22',maps:'https://maps.google.com/?q=59.32568,18.07399'},
+  {cat:'koedboll',name:'Restaurant Tradition',note:'Klassisk og hyggelig i Gamla Stan',lat:59.32595,lng:18.07385,hours:'Lør–Søn 12–23',maps:'https://maps.google.com/?q=59.32595,18.07385'},
+  {cat:'koedboll',name:'Meatballs for the People',note:'Prøv rensdyr, elg og bjørn! Åben alle dage',lat:59.31460,lng:18.08126,hours:'Lør 11–24 · Søn 11–22:30',maps:'https://maps.google.com/?q=59.31460,18.08126'},
+  {cat:'koedboll',name:'Nomad Swedish Food & Bar',note:'Moderne svensk mad – prøv wild stew og toast skagen',lat:59.33611,lng:18.05529,hours:'Lør–Søn 17–23',maps:'https://maps.google.com/?q=59.33611,18.05529'},
+  {cat:'koedboll',name:'FIKA & WINE',note:'Hyggelig restaurant i Gamla Stan – gode kødboller',lat:59.32388,lng:18.07363,hours:'Lør 11–23 · Søn 11–22:30',maps:'https://maps.google.com/?q=59.32388,18.07363'},
+  {cat:'koedboll',name:'House of Smorgasbord',note:'Familieejet i Gamla Stan – smag alt med mindre tallerkener',lat:59.32572,lng:18.07397,hours:'Lør 12–23 · Søn 12–21',maps:'https://maps.google.com/?q=59.32572,18.07397'},
+  {cat:'koedboll',name:'Bakfickan',note:'Klassisk svensk – book bord, populær i weekenden',lat:59.33016,lng:18.07080,hours:'Lør 12–22',maps:'https://maps.google.com/?q=59.33016,18.07080'},
+  // ØL & MAD
+  {cat:'oel',name:'Aifur (Viking Bar)',note:'Viking-tema, mjød, levende musik – BOOK MINDST 1 UGE FORVEJEN!',lat:59.32312,lng:18.07183,hours:'Lør 16–01',maps:'https://maps.google.com/?q=59.32312,18.07183'},
+  {cat:'oel',name:'Den Gyldene Freden',note:'Stockholms ældste restaurant (1722) – historisk og imponerende',lat:59.32317,lng:18.07379,hours:'Lør 12–24',maps:'https://maps.google.com/?q=59.32317,18.07379'},
+  {cat:'oel',name:'Bryggeri Munkbron',note:'Mikrobryggeri i Gamla Stan – husbrygget øl og pølseplade',lat:59.32447,lng:18.06748,hours:'Lør 16–01',maps:'https://maps.google.com/?q=59.32447,18.06748'},
+  {cat:'oel',name:'Bishop Arms Gamla Stan',note:'Klassisk pub med stort øludvalg i Gamla Stan',lat:59.32314,lng:18.06900,hours:'Lør 16–24 · Søn 16–22',maps:'https://maps.google.com/?q=59.32314,18.06900'},
+  {cat:'oel',name:'Oliver Twist',note:'Engelsk pub i Södermalm – håndpumper og hyggelig stemning',lat:59.31833,lng:18.06987,hours:'Lør 12–01',maps:'https://maps.google.com/?q=59.31833,18.06987'},
+  {cat:'oel',name:'The Flying Dog',note:'Lokal bar tæt på hotellet',lat:59.33475,lng:18.05601,hours:'Lør 13–03',maps:'https://maps.google.com/?q=59.33475,18.05601'},
+  {cat:'oel',name:'Tritonia Ölverkstad',note:'Craft beer ved Barrels – enormt udvalg af lokale øl',lat:59.32460,lng:18.06851,hours:'Lør 11:30–24 · Søn 11:30–22',maps:'https://maps.google.com/?q=59.32460,18.06851'},
+  // SEVÆRDIGHEDER
+  {cat:'sights',name:'🏨 Scandic Klara',note:'Jeres base for weekenden',lat:59.33284,lng:18.05720,hours:'',maps:'https://maps.google.com/?q=59.33284,18.05720'},
+  {cat:'sights',name:'Det Kongelige Slot',note:'Verdens største beboede slot – vagtskifte kl. 12',lat:59.32682,lng:18.07172,hours:'Åben alle dage 10–17',maps:'https://maps.google.com/?q=59.32682,18.07172'},
+  {cat:'sights',name:'Vasa Museet',note:'Et af Europas bedste museer – 1600-tals krigsskib næsten intakt',lat:59.32802,lng:18.09140,hours:'Åben alle dage 8:30–18',maps:'https://maps.google.com/?q=59.32802,18.09140'},
+  {cat:'sights',name:'Skansen',note:'Verdens første friluftsmuseum – svenske dyr og historiske bygninger',lat:59.32632,lng:18.10586,hours:'Åben alle dage 10–18',maps:'https://maps.google.com/?q=59.32632,18.10586'},
+  {cat:'sights',name:'ABBA Museet',note:'Interaktivt og underholdende – dans med hologrammer af ABBA!',lat:59.32509,lng:18.09678,hours:'Åben alle dage 9–20',maps:'https://maps.google.com/?q=59.32509,18.09678'},
+  {cat:'sights',name:'Fotografiska',note:'Verdensklasse fotomuseum – åbent til 23 hver dag',lat:59.31796,lng:18.08483,hours:'Åben alle dage 10–23',maps:'https://maps.google.com/?q=59.31796,18.08483'},
+  {cat:'sights',name:'Storkyrkan',note:'Stockholms ældste kirke (1306) – Sankt Jørgen og Dragen',lat:59.32583,lng:18.07035,hours:'Åben alle dage 9:30–17',maps:'https://maps.google.com/?q=59.32583,18.07035'},
+  {cat:'sights',name:'Stockholms Rådhus',note:'Nobelbanket-lokalet – den gyldne sal er spektakulær',lat:59.32779,lng:18.05518,hours:'Kun guidede ture – tjek tider',maps:'https://maps.google.com/?q=59.32779,18.05518'},
+  {cat:'sights',name:'Kungsträdgården',note:'Kongens have – fontæner og byens samlingspunkt',lat:59.33109,lng:18.07183,hours:'Åben 24/7 – gratis',maps:'https://maps.google.com/?q=59.33109,18.07183'},
+  {cat:'sights',name:'Gamla Stan',note:'Middelalderlig bydel – smalle gyder og farvede huse',lat:59.32570,lng:18.07050,hours:'Altid åben',maps:'https://maps.google.com/?q=59.32570,18.07050'},
+  {cat:'sights',name:'Moderna Museet',note:'Moderne kunst på Djurgården – gratis fredage 18–20',lat:59.32605,lng:18.08469,hours:'Tir–Søn 10–18',maps:'https://maps.google.com/?q=59.32605,18.08469'},
+];
+
+// Category lookup
+var catMap = {};
+CATS.forEach(function(c){ catMap[c.id] = c; });
+
+// Active filter state
+var active = {};
+CATS.forEach(function(c){ active[c.id] = true; });
+
+// --- MAP ---
+var map = L.map('map', { center:[59.3290, 18.0680], zoom:14 });
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution:'&copy; <a href="https://openstreetmap.org">OSM</a> &copy; <a href="https://carto.com">CARTO</a>',
+  subdomains:'abcd', maxZoom:19
+}).addTo(map);
+
+// Build SVG pin icons
+function makeIcon(color, isHotel) {
+  var svg;
+  if (isHotel) {
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">'
+        + '<circle cx="17" cy="17" r="15" fill="#fff" stroke="#0f1923" stroke-width="2.5"/>'
+        + '<text x="17" y="22" text-anchor="middle" font-size="15">🏨</text></svg>';
+    return L.divIcon({ className:'', html:svg, iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-18] });
+  }
+  svg = '<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">'
+      + '<path d="M13 0C5.82 0 0 5.82 0 13c0 9.75 13 21 13 21s13-11.25 13-21C26 5.82 20.18 0 13 0z" fill="'+color+'"/>'
+      + '<circle cx="13" cy="13" r="5" fill="rgba(255,255,255,0.35)"/>'
+      + '</svg>';
+  return L.divIcon({ className:'', html:svg, iconSize:[26,34], iconAnchor:[13,34], popupAnchor:[0,-36] });
+}
+
+// Store markers per category
+var layers = {};
+CATS.forEach(function(c){ layers[c.id] = []; });
+
+PLACES.forEach(function(p) {
+  var cat = catMap[p.cat];
+  var icon = makeIcon(cat.color, p.name.indexOf('🏨') === 0);
+  var popup = '<div class="p-cat" style="color:'+cat.color+'">'+cat.label+'</div>'
+    + '<div class="p-name">'+p.name.replace('🏨 ','')+'</div>'
+    + (p.note ? '<div class="p-note">'+p.note+'</div>' : '')
+    + (p.hours ? '<div class="p-hours">⏰ '+p.hours+'</div>' : '')
+    + (p.maps ? '<a class="p-link" href="'+p.maps+'" target="_blank">Åbn i Google Maps →</a>' : '');
+  var m = L.marker([p.lat, p.lng], {icon:icon}).bindPopup(popup, {maxWidth:240});
+  m.addTo(map);
+  layers[p.cat].push(m);
+});
+
+// --- FILTERS ---
+var filtersEl = document.getElementById('filters');
+
+// "Alle" button
+var allBtn = document.createElement('button');
+allBtn.className = 'filter-btn active';
+allBtn.style.setProperty('--c','#e8ddd0');
+allBtn.innerHTML = '<span class="dot" style="background:#e8ddd0"></span>Alle';
+allBtn.dataset.cat = 'all';
+filtersEl.appendChild(allBtn);
+
+CATS.forEach(function(cat) {
+  var btn = document.createElement('button');
+  btn.className = 'filter-btn active';
+  btn.style.setProperty('--c', cat.color);
+  btn.dataset.cat = cat.id;
+  btn.innerHTML = '<span class="dot" style="background:'+cat.color+'"></span>'+cat.label;
+  filtersEl.appendChild(btn);
+});
+
+function updateMap() {
+  CATS.forEach(function(cat) {
+    layers[cat.id].forEach(function(m) {
+      if (active[cat.id]) { if (!map.hasLayer(m)) map.addLayer(m); }
+      else { if (map.hasLayer(m)) map.removeLayer(m); }
+    });
+  });
+}
+
+filtersEl.addEventListener('click', function(e) {
+  var btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  var cat = btn.dataset.cat;
+  if (cat === 'all') {
+    var anyOn = CATS.some(function(c){ return active[c.id]; });
+    CATS.forEach(function(c){ active[c.id] = !anyOn; });
+    document.querySelectorAll('.filter-btn').forEach(function(b){ b.classList.toggle('active', !anyOn); });
+  } else {
+    active[cat] = !active[cat];
+    btn.classList.toggle('active', active[cat]);
+    var allOn = CATS.every(function(c){ return active[c.id]; });
+    allBtn.classList.toggle('active', allOn);
+  }
+  updateMap();
+});
+</script>
+</body>
+</html>
